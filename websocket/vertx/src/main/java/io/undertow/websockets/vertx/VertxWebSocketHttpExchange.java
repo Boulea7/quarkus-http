@@ -23,7 +23,7 @@ import io.vertx.core.AsyncResult;
 import io.vertx.core.Handler;
 import io.vertx.core.http.HttpServerRequest;
 import io.vertx.core.http.HttpServerResponse;
-import io.vertx.core.http.impl.Http1xServerConnection;
+import io.vertx.core.net.impl.ConnectionBase;
 import io.vertx.ext.auth.User;
 import io.vertx.ext.web.RoutingContext;
 
@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 
@@ -48,7 +49,7 @@ public class VertxWebSocketHttpExchange implements WebSocketHttpExchange {
     private final HttpServerRequest request;
     private final HttpServerResponse response;
     private final RoutingContext exchange;
-    final Map<String, Object> attributes = new HashMap<>();
+    final Map<String, Object> attributes = new ConcurrentHashMap<>();
 
     public VertxWebSocketHttpExchange(Executor executor, final RoutingContext context) {
         this.executor = executor;
@@ -116,7 +117,7 @@ public class VertxWebSocketHttpExchange implements WebSocketHttpExchange {
     public void upgradeChannel(Consumer<Object> listener) {
         response.headers().set(HttpHeaderNames.CONNECTION, "upgrade");
 
-        Http1xServerConnection connection = (Http1xServerConnection) request.connection();
+        ConnectionBase connection = (ConnectionBase) request.connection();
         ChannelHandlerContext context = connection.channelHandlerContext();
         final ChannelHandler websocketChannelHandler = context.pipeline().get("webSocketExtensionHandler");
         if (websocketChannelHandler != null) {
@@ -127,7 +128,7 @@ public class VertxWebSocketHttpExchange implements WebSocketHttpExchange {
                 .onComplete(new Handler<AsyncResult<Void>>() {
                     @Override
                     public void handle(AsyncResult<Void> event) {
-                        Http1xServerConnection connection = (Http1xServerConnection) request.connection();
+                        ConnectionBase connection = (ConnectionBase) request.connection();
                         ChannelHandlerContext context = connection.channelHandlerContext();
                         context.pipeline().remove("httpDecoder");
                         context.pipeline().remove("httpEncoder");

@@ -27,7 +27,6 @@ import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpServerRequest;
 import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.http.HttpVersion;
-import io.vertx.core.http.impl.Http1xServerConnection;
 import io.vertx.core.internal.buffer.BufferInternal;
 import io.vertx.core.net.SocketAddress;
 import io.vertx.core.net.impl.ConnectionBase;
@@ -60,7 +59,7 @@ public class VertxHttpExchange extends HttpExchangeBase implements HttpExchange,
     private final HttpServerResponse response;
     private final ConnectionBase connectionBase;
     private long maxEntitySize = UndertowOptions.DEFAULT_MAX_ENTITY_SIZE;
-    private long uploadSize = 0l;
+    private long uploadSize = 0L;
 
     //io
     private final BufferAllocator allocator;
@@ -68,20 +67,20 @@ public class VertxHttpExchange extends HttpExchangeBase implements HttpExchange,
 
     private Buffer input1;
     private Deque<Buffer> inputOverflow;
-    private boolean waitingForRead = false;
+    private volatile boolean waitingForRead = false;
     private BiConsumer<InputChannel, Object> readHandler;
     private Object readHandlerContext;
 
-    private boolean eof = false;
-    private boolean eofRead = false;
-    private boolean responseDone = false;
+    private volatile boolean eof = false;
+    private volatile boolean eofRead = false;
+    private volatile boolean responseDone = false;
 
-    private boolean waitingForWrite;
-    private boolean drainHandlerRegistered;
+    private volatile boolean waitingForWrite;
+    private volatile boolean drainHandlerRegistered;
     private volatile boolean writeQueued = false;
-    private IOException readError;
+    private volatile IOException readError;
     private final Object context;
-    private boolean first = true;
+    private volatile boolean first = true;
     private Handler<AsyncResult<Void>> upgradeHandler;
     private final boolean upgradeRequest;
     private long readTimeout = UndertowOptions.DEFAULT_READ_TIMEOUT;
@@ -89,7 +88,7 @@ public class VertxHttpExchange extends HttpExchangeBase implements HttpExchange,
     private long requestContentLength = -1;
 
     private Handler<HttpServerRequest> pushHandler;
-    private int continueState;
+    private volatile int continueState;
     private UndertowOptionMap optionMap = UndertowOptionMap.EMPTY;
 
     public VertxHttpExchange(HttpServerRequest request, BufferAllocator allocator, Executor worker, Object context) {
@@ -111,6 +110,7 @@ public class VertxHttpExchange extends HttpExchangeBase implements HttpExchange,
             pipeline.remove(websocketChannelHandler);
         }
         if (isRequestEntityBodyAllowed() && !request.isEnded()) {
+            request.pause();
             request.handler(this);
             request.exceptionHandler(new Handler<Throwable>() {
                 @Override
@@ -760,6 +760,7 @@ public class VertxHttpExchange extends HttpExchangeBase implements HttpExchange,
         Object context = null;
         if (event.length() == 0) {
             release(event);
+            request.fetch(1);
             return;
         }
         synchronized (request.connection()) {
@@ -908,7 +909,7 @@ public class VertxHttpExchange extends HttpExchangeBase implements HttpExchange,
 
     @Override
     public void setUpgradeListener(Consumer<Object> listener) {
-        Http1xServerConnection connection = (Http1xServerConnection) request.connection();
+        ConnectionBase connection = (ConnectionBase) request.connection();
         ChannelHandlerContext context = connection.channelHandlerContext();
         upgradeHandler = new Handler<AsyncResult<Void>>() {
             @Override
